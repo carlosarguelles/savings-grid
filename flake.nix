@@ -29,7 +29,7 @@
           pname = "savings-grid";
           version = "1.0.0";
           src = ./.;
-          npmDepsHash = "sha256-Zebp0ot6USQw9haVYpXw1XyexctM6t7TAwEbnnlBhn8=";
+          npmDepsHash = "sha256-IxoPfqSD3oL4R6MEfi0IQG7mX2Y0cGBuzbdsxc61wsU=";
           # Pass base URL from environment; falls back to "/" for local nix build
           VITE_BASE_URL = builtins.getEnv "VITE_BASE_URL";
           buildPhase = "npm run build";

@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 
 // Set VITE_BASE_URL to /<repo-name> for GitHub Pages.
@@ -6,6 +7,6 @@ import react from "@vitejs/plugin-react";
 const base = process.env.VITE_BASE_URL ?? "/";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react()],
   base,
 });

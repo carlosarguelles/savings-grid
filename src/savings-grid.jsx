@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Sun, Moon, PiggyBank, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { COUNT, formatCOP, haptic, generateCells, loadGoals, saveGoals } from './utils.js';
-import { styles, cssBase } from './styles.js';
 import GoalCard from './components/goal-card.jsx';
 import GoalDetail from './components/goal-detail.jsx';
 import CreateGoalSheet from './components/create-goal-sheet.jsx';
@@ -127,41 +126,22 @@ export default function SavingsGrid() {
     }
   }
 
-  // ─── Computed styles ─────────────────────────────────────────────────────────
-  const headerStyle = {
-    position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-    height: "calc(60px + env(safe-area-inset-top, 0px))",
-    paddingTop: "env(safe-area-inset-top, 0px)",
-    paddingLeft: 16, paddingRight: 16,
-    display: "flex", alignItems: "center",
-    backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-    background: theme === "dark" ? "rgba(26,26,26,0.85)" : "rgba(255,248,220,0.9)",
-    borderBottom: "1px solid var(--card-border)",
-  };
-
-  const slideStyle = {
-    width: "100%",
-    overflow: "hidden",
-    transform: viewState === "entering" ? "translateX(100%)" : "translateX(0)",
-    transition: viewState === "entering" ? "none" : viewState === "active" ? "transform 0.28s cubic-bezier(0.4,0,0.2,1)" : "none",
-  };
-
   // ─── List content ─────────────────────────────────────────────────────────────
   const listContent = (
     <>
       {goals.length === 0 && !showCreateForm && (
-        <div style={styles.emptyState}>
-          <PiggyBank size={56} style={{ opacity: 0.3, marginBottom: 16 }} />
-          <p style={styles.emptyText}>Aún no tienes metas de ahorro.</p>
-          <p style={styles.emptySubText}>¡Crea tu primera meta y empieza a ahorrar!</p>
-          <button onClick={openSheet} style={styles.createBtnLarge}>
+        <div className="text-center py-[60px] px-5 flex flex-col items-center gap-2">
+          <PiggyBank size={56} className="opacity-30 mb-4" />
+          <p className="text-[18px] font-bold text-[var(--color-text-dim)]">Aún no tienes metas de ahorro.</p>
+          <p className="text-[14px] text-[var(--color-text-faint)] mb-3">¡Crea tu primera meta y empieza a ahorrar!</p>
+          <button onClick={openSheet} className="bg-[rgba(255,107,157,0.22)] border border-[rgba(255,107,157,0.55)] text-[var(--color-violet)] rounded-2xl px-7 py-3.5 text-[16px] font-bold flex items-center gap-2 mt-2">
             <Plus size={18} /> Nueva meta
           </button>
         </div>
       )}
 
       {goals.length > 0 && (
-        <div style={styles.goalGrid}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4 mb-6">
           {goals.map(goal => (
             <GoalCard key={goal.id} goal={goal} onOpen={navigateTo} onDelete={deleteGoal} />
           ))}
@@ -172,23 +152,23 @@ export default function SavingsGrid() {
 
   // ─── Unified return ───────────────────────────────────────────────────────────
   return (
-    <div className={theme} style={styles.root}>
+    <div className="min-h-screen bg-[var(--bg)] font-nunito text-[var(--color-text)] relative overflow-x-hidden">
       {/* Fixed app header */}
-      <header style={headerStyle}>
+      <header className="fixed top-0 left-0 right-0 z-[100] h-safe-header pt-safe-header px-4 flex items-center backdrop-blur-[14px] bg-[var(--header-bg)] border-b border-[var(--card-border)]">
         {activeGoal ? (
           <>
-            <button onClick={() => navigateTo(null)} style={styles.backBtn}><ArrowLeft size={20} /></button>
-            <div style={{ ...styles.detailTitleWrap, flex: 1 }}>
-              <h1 style={styles.detailTitle}>{activeGoal.name}</h1>
-              <span style={styles.detailTarget}>{formatCOP(activeGoal.target)}</span>
+            <button onClick={() => navigateTo(null)} className="bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--color-text-dim)] rounded-xl p-[10px_12px] flex items-center shrink-0 mr-3"><ArrowLeft size={20} /></button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-[clamp(16px,4vw,24px)] font-black text-[var(--color-title)] leading-[1.15] whitespace-nowrap overflow-hidden text-ellipsis">{activeGoal.name}</h1>
+              <span className="text-[13px] text-[var(--color-goal)] font-semibold">{formatCOP(activeGoal.target)}</span>
             </div>
-            <button onClick={() => deleteGoal(activeGoal.id)} style={styles.deleteGoalBtn} title="Eliminar meta"><Trash2 size={18} /></button>
+            <button onClick={() => deleteGoal(activeGoal.id)} className="bg-[rgba(244,67,54,0.1)] border border-[rgba(244,67,54,0.3)] text-[#F44336] rounded-xl p-[10px_12px] flex items-center shrink-0" title="Eliminar meta"><Trash2 size={18} /></button>
           </>
         ) : (
           <>
-            <PiggyBank size={26} style={{ color: "var(--color-title)", flexShrink: 0 }} />
-            <h1 style={{ ...styles.title, fontSize: 20, marginLeft: 10, flex: 1 }}>Metas de Ahorro</h1>
-            <button onClick={toggleTheme} style={styles.themeToggle} title="Toggle theme">
+            <PiggyBank size={26} className="text-[var(--color-title)] shrink-0" />
+            <h1 className="text-[20px] ml-[10px] flex-1 font-black text-[var(--color-title)] tracking-[-0.02em] leading-[1.1]">Metas de Ahorro</h1>
+            <button onClick={toggleTheme} className="w-12 h-12 rounded-full bg-[var(--toggle-bg)] border border-[var(--toggle-border)] text-[var(--toggle-color)] text-[18px] flex items-center justify-center transition-[background,border-color] duration-200" title="Toggle theme">
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </>
@@ -196,8 +176,8 @@ export default function SavingsGrid() {
       </header>
 
       {/* Sliding content */}
-      <div style={slideStyle}>
-        <div style={styles.container}>
+      <div data-view-state={viewState} className="w-full overflow-hidden">
+        <div className="max-w-[960px] mx-auto pt-safe-top px-4 pb-safe-fab">
           {activeGoal ? (
             <GoalDetail
               goal={activeGoal}
@@ -211,8 +191,8 @@ export default function SavingsGrid() {
 
       {/* Fixed FAB */}
       {!activeGoal && goals.length > 0 && !showCreateForm && (
-        <div style={styles.fabWrap}>
-          <button onClick={openSheet} style={styles.fab}><Plus size={22} /> Nueva meta</button>
+        <div className="fixed bottom-safe-fab left-0 right-0 z-50 flex justify-center pointer-events-none">
+          <button onClick={openSheet} className="bg-[rgba(255,107,157,0.22)] border border-[rgba(255,107,157,0.55)] text-[var(--color-violet)] rounded-full px-7 py-3.5 text-[15px] font-bold flex items-center gap-2 pointer-events-auto"><Plus size={22} /> Nueva meta</button>
         </div>
       )}
 
@@ -228,8 +208,6 @@ export default function SavingsGrid() {
           onClose={closeSheet}
         />
       )}
-
-      <style>{cssBase}</style>
     </div>
   );
 }
