@@ -90,6 +90,10 @@ export default function SavingsGrid() {
 
   useEffect(() => { saveGoals(goals); }, [goals]);
 
+  useEffect(() => {
+    document.documentElement.className = theme;
+  }, [theme]);
+
   const activeGoal = goals.find(g => g.id === activeGoalId) ?? null;
 
   useEffect(() => {
@@ -465,7 +469,7 @@ const cssBase = `
     --color-title: #E84C7B;
   }
 
-  body { background: var(--bg); }
+  html, body { background: var(--bg); }
 `;
 
 const styles = {
@@ -602,7 +606,7 @@ const styles = {
     borderRadius: 10,
     padding: "10px 14px",
     color: "var(--input-color)",
-    fontSize: 15,
+    fontSize: 16,
     outline: "none",
     width: "100%",
   },
