@@ -6,14 +6,27 @@ const formatCOP = (n) => "$" + n.toLocaleString("es-CO");
 const COUNT = 176;
 const STORAGE_KEY = "savings_grid_v3";
 
+function snapToNice(raw) {
+  if (raw <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = raw / p;
+  let mult;
+  if (m < 1.414) mult = 1;
+  else if (m < 3.162) mult = 2;
+  else if (m < 7.071) mult = 5;
+  else mult = 10;
+  return mult * p;
+}
+
 function generateCells(target) {
   const factor = target / 1_000_000;
-  const STEP = Math.max(1, Math.round(500 * factor));
+  const STEP = Math.max(500, snapToNice(Math.max(1, Math.round(500 * factor))));
+  const effectiveTarget = Math.floor(target / STEP) * STEP;
   const MIN = STEP;
-  const MAX = Math.max(MIN + STEP, Math.round(10_000 * factor));
+  const MAX = Math.max(MIN + STEP, snapToNice(Math.round(10_000 * factor)));
 
   let values = new Array(COUNT).fill(MIN);
-  let pool = target - COUNT * MIN;
+  let pool = effectiveTarget - COUNT * MIN;
   const maxExtra = MAX - MIN;
 
   const order = Array.from({ length: COUNT }, (_, i) => i);
@@ -32,9 +45,9 @@ function generateCells(target) {
   }
 
   if (pool > 0) {
-    for (let i = 0; i < COUNT && pool > 0; i++) {
+    for (let i = 0; i < COUNT && pool >= STEP; i++) {
       const canAdd = Math.floor((MAX - values[i]) / STEP) * STEP;
-      const add = Math.min(canAdd, pool);
+      const add = Math.min(canAdd, Math.floor(pool / STEP) * STEP);
       values[i] += add;
       pool -= add;
     }
