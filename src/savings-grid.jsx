@@ -164,10 +164,6 @@ export default function SavingsGrid() {
 
     return (
       <div className={theme} style={styles.root}>
-        <button onClick={toggleTheme} style={styles.themeToggle} title="Toggle theme">
-          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
-
         <div style={styles.container}>
           {/* Detail header */}
           <header style={styles.detailHeader}>
@@ -276,15 +272,14 @@ export default function SavingsGrid() {
   // ─── List view ─────────────────────────────────────────────────────────────
   return (
     <div className={theme} style={styles.root}>
-      <button onClick={toggleTheme} style={styles.themeToggle} title="Toggle theme">
-        {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-      </button>
-
       <div style={styles.container}>
         {/* List header */}
         <header style={styles.listHeader}>
           <span style={styles.coin}><PiggyBank size={48} /></span>
           <h1 style={styles.title}>Metas de Ahorro</h1>
+          <button onClick={toggleTheme} style={styles.themeToggle} title="Toggle theme">
+            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
         </header>
 
         {/* Create form */}
@@ -482,10 +477,9 @@ const styles = {
     position: "relative",
   },
   themeToggle: {
-    position: "fixed",
-    top: 16,
-    right: 16,
-    zIndex: 100,
+    position: "absolute",
+    top: 0,
+    right: 0,
     width: 48,
     height: 48,
     borderRadius: "50%",
@@ -507,7 +501,7 @@ const styles = {
   },
 
   // List view
-  listHeader: { textAlign: "center", marginBottom: 28 },
+  listHeader: { textAlign: "center", marginBottom: 28, position: "relative" },
   coin: { fontSize: 48, display: "block", marginBottom: 6 },
   title: {
     fontSize: "clamp(26px, 7vw, 52px)",
