@@ -6,6 +6,8 @@ const formatCOP = (n) => "$" + n.toLocaleString("es-CO");
 const COUNT = 176;
 const STORAGE_KEY = "savings_grid_v3";
 
+function haptic(ms = 15) { if (navigator.vibrate) navigator.vibrate(ms); }
+
 function snapToNice(raw) {
   if (raw <= 0) return 1;
   const p = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -85,6 +87,8 @@ export default function SavingsGrid() {
   const [burst, setBurst] = useState(null);
   const [newName, setNewName] = useState("");
   const [newTarget, setNewTarget] = useState(1_000_000);
+  const [sheetClosing, setSheetClosing] = useState(false);
+  const [viewState, setViewState] = useState("idle"); // "idle" | "entering" | "active"
   const logRef = useRef(null);
 
   const [theme, setTheme] = useState(() => {
@@ -105,6 +109,8 @@ export default function SavingsGrid() {
 
   useEffect(() => {
     document.documentElement.className = theme;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = theme === "dark" ? "#1A1A1A" : "#FFF8DC";
   }, [theme]);
 
   const activeGoal = goals.find(g => g.id === activeGoalId) ?? null;
@@ -118,6 +124,7 @@ export default function SavingsGrid() {
   }
 
   function toggleCell(goalId, cellId) {
+    haptic(15);
     const goal = goals.find(g => g.id === goalId);
     const updated = goal.cells.map(c => c.id !== cellId ? c : { ...c, checked: !c.checked });
     const cell = updated.find(c => c.id === cellId);
@@ -144,9 +151,38 @@ export default function SavingsGrid() {
     }
   }
 
+  function openSheet() {
+    setSheetClosing(false);
+    setShowCreateForm(true);
+    document.body.classList.add("sheet-open");
+  }
+
+  function closeSheet() {
+    setSheetClosing(true);
+    setTimeout(() => {
+      setShowCreateForm(false);
+      setSheetClosing(false);
+      setNewName("");
+      setNewTarget(1_000_000);
+      document.body.classList.remove("sheet-open");
+    }, 270);
+  }
+
+  function navigateTo(goalId) {
+    if (goalId) {
+      setViewState("entering");
+      setActiveGoalId(goalId);
+      requestAnimationFrame(() => requestAnimationFrame(() => setViewState("active")));
+    } else {
+      setViewState("entering");
+      setTimeout(() => { setActiveGoalId(null); setViewState("idle"); }, 280);
+    }
+  }
+
   function createGoal() {
     const name = newName.trim();
     if (!name) return;
+    haptic(30);
     const target = Math.max(1, Number(newTarget) || 1_000_000);
     const goal = {
       id: crypto.randomUUID(),
@@ -157,21 +193,40 @@ export default function SavingsGrid() {
       createdAt: new Date().toISOString(),
     };
     setGoals(gs => [...gs, goal]);
-    setNewName("");
-    setNewTarget(1_000_000);
-    setShowCreateForm(false);
-    setActiveGoalId(goal.id);
+    closeSheet();
+    navigateTo(goal.id);
   }
 
   function deleteGoal(id) {
     const goal = goals.find(g => g.id === id);
     if (window.confirm(`¿Eliminar la meta "${goal.name}"? Esta acción no se puede deshacer.`)) {
+      haptic(30);
       setGoals(gs => gs.filter(g => g.id !== id));
-      if (activeGoalId === id) setActiveGoalId(null);
+      if (activeGoalId === id) navigateTo(null);
     }
   }
 
-  // ─── Detail view ───────────────────────────────────────────────────────────
+  // ─── Computed styles ────────────────────────────────────────────────────────
+  const headerStyle = {
+    position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+    height: "calc(60px + env(safe-area-inset-top, 0px))",
+    paddingTop: "env(safe-area-inset-top, 0px)",
+    paddingLeft: 16, paddingRight: 16,
+    display: "flex", alignItems: "center",
+    backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+    background: theme === "dark" ? "rgba(26,26,26,0.85)" : "rgba(255,248,220,0.9)",
+    borderBottom: "1px solid var(--card-border)",
+  };
+
+  const slideStyle = {
+    width: "100%",
+    overflow: "hidden",
+    transform: viewState === "entering" ? "translateX(100%)" : "translateX(0)",
+    transition: viewState === "entering" ? "none" : viewState === "active" ? "transform 0.28s cubic-bezier(0.4,0,0.2,1)" : "none",
+  };
+
+  // ─── Detail content ─────────────────────────────────────────────────────────
+  let detailContent = null;
   if (activeGoal) {
     const { cells, log, name, target } = activeGoal;
     const savedAmount = cells.filter(c => c.checked).reduce((s, c) => s + c.value, 0);
@@ -179,136 +234,211 @@ export default function SavingsGrid() {
     const done = savedAmount >= target;
     const checkedCount = cells.filter(c => c.checked).length;
 
-    return (
-      <div className={theme} style={styles.root}>
-        <div style={styles.container}>
-          {/* Detail header */}
-          <header style={styles.detailHeader}>
-            <button onClick={() => setActiveGoalId(null)} style={styles.backBtn}>
-              <ArrowLeft size={20} />
-            </button>
-            <div style={styles.detailTitleWrap}>
-              <h1 style={styles.detailTitle}>{name}</h1>
-              <span style={styles.detailTarget}>{formatCOP(target)}</span>
-            </div>
-            <button onClick={() => deleteGoal(activeGoal.id)} style={styles.deleteGoalBtn} title="Eliminar meta">
-              <Trash2 size={18} />
-            </button>
-          </header>
-
-          {/* Progress card */}
-          <div style={styles.progressCard}>
-            <div style={styles.progressTop}>
-              <div>
-                <div style={styles.progressNumbers}>
-                  <span style={styles.savedAmount}>{formatCOP(savedAmount)}</span>
-                  <span style={styles.slash}> / </span>
-                  <span style={styles.goalAmount}>{formatCOP(target)}</span>
-                </div>
-                <div style={styles.remaining}>
-                  {done ? <><PartyPopper size={16} />¡Felicitaciones, meta alcanzada!</> : `Faltan ${formatCOP(target - savedAmount)}`}
-                </div>
+    detailContent = (
+      <>
+        {/* Progress card */}
+        <div style={styles.progressCard}>
+          <div style={styles.progressTop}>
+            <div>
+              <div style={styles.progressNumbers}>
+                <span style={styles.savedAmount}>{formatCOP(savedAmount)}</span>
+                <span style={styles.slash}> / </span>
+                <span style={styles.goalAmount}>{formatCOP(target)}</span>
               </div>
-              <div style={styles.statsRight}>
-                <div style={styles.statBox}>
-                  <span style={styles.statNum}>{checkedCount}</span>
-                  <span style={styles.statLabel}>marcadas</span>
-                </div>
-                <div style={styles.statBox}>
-                  <span style={styles.statNum}>{COUNT - checkedCount}</span>
-                  <span style={styles.statLabel}>restantes</span>
-                </div>
+              <div style={styles.remaining}>
+                {done ? <><PartyPopper size={16} />¡Felicitaciones, meta alcanzada!</> : `Faltan ${formatCOP(target - savedAmount)}`}
               </div>
             </div>
-            <div style={styles.progressBarWrap}>
-              <div style={{ ...styles.progressBar, width: `${pct}%`, background: done ? "#4A9B7F" : "#FF6B9D" }} />
-            </div>
-            <div style={styles.pctRow}>
-              <span style={styles.pctLabel}>{pct.toFixed(1)}% completado</span>
+            <div style={styles.statsRight}>
+              <div style={styles.statBox}>
+                <span style={styles.statNum}>{checkedCount}</span>
+                <span style={styles.statLabel}>marcadas</span>
+              </div>
+              <div style={styles.statBox}>
+                <span style={styles.statNum}>{COUNT - checkedCount}</span>
+                <span style={styles.statLabel}>restantes</span>
+              </div>
             </div>
           </div>
-
-          {/* Grid */}
-          <div style={styles.grid}>
-            {cells.map(cell => {
-              const isBurst = burst === cell.id;
-              return (
-                <button
-                  key={cell.id}
-                  onClick={() => toggleCell(activeGoal.id, cell.id)}
-                  style={{
-                    ...styles.cell,
-                    ...(cell.checked ? styles.cellChecked : styles.cellUnchecked),
-                    ...(isBurst ? styles.cellBurst : {}),
-                  }}
-                  title={formatCOP(cell.value)}
-                >
-                  {cell.checked && <span style={styles.checkmark}><Check size={20} /></span>}
-                  <span style={styles.cellValue}>
-                    {cell.value >= 1000 ? `$${(cell.value / 1000).toLocaleString("es-CO")}k` : `$${cell.value}`}
-                  </span>
-                </button>
-              );
-            })}
+          <div style={styles.progressBarWrap}>
+            <div style={{ ...styles.progressBar, width: `${pct}%`, background: done ? "#4A9B7F" : "#FF6B9D" }} />
           </div>
-
-          {/* Log */}
-          <div style={styles.logSection}>
-            <div style={styles.logHeader}>
-              <span style={styles.logTitle}><ClipboardList size={16} />Historial de ahorros</span>
-              <button onClick={() => resetAll(activeGoal.id)} style={styles.resetBtn}>Reiniciar</button>
-            </div>
-            <div ref={logRef} style={styles.logScroll}>
-              {log.length === 0 ? (
-                <p style={styles.logEmpty}>Aún no hay registros. ¡Marca tu primer ahorro!</p>
-              ) : (
-                [...log].reverse().map(entry => (
-                  <div key={entry.id} style={styles.logEntry}>
-                    <div style={styles.logRow}>
-                      <span style={styles.logText}>
-                        {entry.type === "add" ? "Guardado" : "Desmarcado"}{" "}
-                        <strong style={{ color: entry.type === "add" ? "#4A9B7F" : "#E84C7B" }}>{formatCOP(entry.value)}</strong>
-                      </span>
-                    </div>
-                    <div style={styles.logMeta}>
-                      <span>Acumulado: <strong style={{ color: "var(--color-violet)" }}>{formatCOP(entry.total)}</strong></span>
-                      <span style={styles.logTime}>{entry.time}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          <div style={styles.pctRow}>
+            <span style={styles.pctLabel}>{pct.toFixed(1)}% completado</span>
           </div>
         </div>
 
-        <style>{cssBase}</style>
-      </div>
+        {/* Grid */}
+        <div style={styles.grid}>
+          {cells.map(cell => {
+            const isBurst = burst === cell.id;
+            return (
+              <button
+                key={cell.id}
+                onClick={() => toggleCell(activeGoal.id, cell.id)}
+                style={{
+                  ...styles.cell,
+                  ...(cell.checked ? styles.cellChecked : styles.cellUnchecked),
+                  ...(isBurst ? styles.cellBurst : {}),
+                }}
+                title={formatCOP(cell.value)}
+              >
+                {cell.checked && <span style={styles.checkmark}><Check size={20} /></span>}
+                <span style={styles.cellValue}>
+                  {cell.value >= 1000 ? `$${(cell.value / 1000).toLocaleString("es-CO")}k` : `$${cell.value}`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Log */}
+        <div style={styles.logSection}>
+          <div style={styles.logHeader}>
+            <span style={styles.logTitle}><ClipboardList size={16} />Historial de ahorros</span>
+            <button onClick={() => resetAll(activeGoal.id)} style={styles.resetBtn}>Reiniciar</button>
+          </div>
+          <div ref={logRef} style={styles.logScroll}>
+            {log.length === 0 ? (
+              <p style={styles.logEmpty}>Aún no hay registros. ¡Marca tu primer ahorro!</p>
+            ) : (
+              [...log].reverse().map(entry => (
+                <div key={entry.id} style={styles.logEntry}>
+                  <div style={styles.logRow}>
+                    <span style={styles.logText}>
+                      {entry.type === "add" ? "Guardado" : "Desmarcado"}{" "}
+                      <strong style={{ color: entry.type === "add" ? "#4A9B7F" : "#E84C7B" }}>{formatCOP(entry.value)}</strong>
+                    </span>
+                  </div>
+                  <div style={styles.logMeta}>
+                    <span>Acumulado: <strong style={{ color: "var(--color-violet)" }}>{formatCOP(entry.total)}</strong></span>
+                    <span style={styles.logTime}>{entry.time}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </>
     );
   }
 
-  // ─── List view ─────────────────────────────────────────────────────────────
+  // ─── List content ────────────────────────────────────────────────────────────
+  const listContent = (
+    <>
+      {/* Empty state */}
+      {goals.length === 0 && !showCreateForm && (
+        <div style={styles.emptyState}>
+          <PiggyBank size={56} style={{ opacity: 0.3, marginBottom: 16 }} />
+          <p style={styles.emptyText}>Aún no tienes metas de ahorro.</p>
+          <p style={styles.emptySubText}>¡Crea tu primera meta y empieza a ahorrar!</p>
+          <button onClick={openSheet} style={styles.createBtnLarge}>
+            <Plus size={18} /> Nueva meta
+          </button>
+        </div>
+      )}
+
+      {/* Goal cards */}
+      {goals.length > 0 && (
+        <div style={styles.goalGrid}>
+          {goals.map(goal => {
+            const saved = goal.cells.filter(c => c.checked).reduce((s, c) => s + c.value, 0);
+            const pct = Math.min((saved / goal.target) * 100, 100);
+            return (
+              <div
+                key={goal.id}
+                style={styles.goalCard}
+                onClick={() => navigateTo(goal.id)}
+              >
+                <div style={styles.goalCardTop}>
+                  <span style={styles.goalCardName}>{goal.name}</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); deleteGoal(goal.id); }}
+                    style={styles.goalCardDelete}
+                    title="Eliminar"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+                <div style={styles.goalCardProgressWrap}>
+                  <div style={{ ...styles.goalCardProgressBar, width: `${pct}%` }} />
+                </div>
+                <div style={styles.goalCardMeta}>
+                  <span style={styles.goalCardSaved}>{formatCOP(saved)}</span>
+                  <span style={styles.goalCardTarget}>/ {formatCOP(goal.target)}</span>
+                  <span style={styles.goalCardPct}>{pct.toFixed(0)}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+
+  // ─── Unified return ──────────────────────────────────────────────────────────
   return (
     <div className={theme} style={styles.root}>
-      <div style={styles.container}>
-        {/* List header */}
-        <header style={styles.listHeader}>
-          <span style={styles.coin}><PiggyBank size={48} /></span>
-          <h1 style={styles.title}>Metas de Ahorro</h1>
-          <button onClick={toggleTheme} style={styles.themeToggle} title="Toggle theme">
-            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-        </header>
+      {/* Fixed app header */}
+      <header style={headerStyle}>
+        {activeGoal ? (
+          <>
+            <button onClick={() => navigateTo(null)} style={styles.backBtn}><ArrowLeft size={20} /></button>
+            <div style={{ ...styles.detailTitleWrap, flex: 1 }}>
+              <h1 style={styles.detailTitle}>{activeGoal.name}</h1>
+              <span style={styles.detailTarget}>{formatCOP(activeGoal.target)}</span>
+            </div>
+            <button onClick={() => deleteGoal(activeGoal.id)} style={styles.deleteGoalBtn} title="Eliminar meta"><Trash2 size={18} /></button>
+          </>
+        ) : (
+          <>
+            <PiggyBank size={26} style={{ color: "var(--color-title)", flexShrink: 0 }} />
+            <h1 style={{ ...styles.title, fontSize: 20, marginLeft: 10, flex: 1 }}>Metas de Ahorro</h1>
+            <button onClick={toggleTheme} style={styles.themeToggle} title="Toggle theme">
+              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+          </>
+        )}
+      </header>
 
-        {/* Create form */}
-        {showCreateForm && (
-          <div style={styles.createFormCard}>
+      {/* Sliding content */}
+      <div style={slideStyle}>
+        <div style={styles.container}>
+          {activeGoal ? detailContent : listContent}
+        </div>
+      </div>
+
+      {/* Fixed FAB */}
+      {!activeGoal && goals.length > 0 && !showCreateForm && (
+        <div style={styles.fabWrap}>
+          <button onClick={openSheet} style={styles.fab}><Plus size={22} /> Nueva meta</button>
+        </div>
+      )}
+
+      {/* Bottom sheet */}
+      {showCreateForm && (
+        <>
+          <div onClick={closeSheet} style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.5)",
+            animation: `${sheetClosing ? "overlayOut" : "overlayIn"} 0.27s ease forwards`,
+          }} />
+          <div style={{
+            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 201,
+            background: "var(--bg)", borderRadius: "20px 20px 0 0",
+            padding: "0 20px calc(env(safe-area-inset-bottom, 0px) + 28px)",
+            boxShadow: "0 -8px 40px rgba(0,0,0,0.35)",
+            border: "1px solid var(--card-border)", borderBottom: "none",
+            animation: `${sheetClosing ? "slideDown" : "slideUp"} 0.27s ease forwards`,
+          }}>
+            <div style={{ width: 40, height: 4, borderRadius: 99, background: "rgba(255,107,157,0.3)", margin: "12px auto 20px" }} />
             <h3 style={styles.createFormTitle}>Nueva meta</h3>
             <div style={styles.createFormFields}>
               <input
                 autoFocus
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") createGoal(); if (e.key === "Escape") setShowCreateForm(false); }}
+                onKeyDown={e => { if (e.key === "Enter") createGoal(); if (e.key === "Escape") closeSheet(); }}
                 placeholder="Nombre de la meta (ej. Vacaciones)"
                 maxLength={40}
                 style={styles.formInput}
@@ -323,68 +453,11 @@ export default function SavingsGrid() {
             </div>
             <div style={styles.createFormBtns}>
               <button onClick={createGoal} style={styles.createBtn}>Crear</button>
-              <button onClick={() => { setShowCreateForm(false); setNewName(""); setNewTarget(1_000_000); }} style={styles.cancelBtn}>Cancelar</button>
+              <button onClick={closeSheet} style={styles.cancelBtn}>Cancelar</button>
             </div>
           </div>
-        )}
-
-        {/* Empty state */}
-        {goals.length === 0 && !showCreateForm && (
-          <div style={styles.emptyState}>
-            <PiggyBank size={56} style={{ opacity: 0.3, marginBottom: 16 }} />
-            <p style={styles.emptyText}>Aún no tienes metas de ahorro.</p>
-            <p style={styles.emptySubText}>¡Crea tu primera meta y empieza a ahorrar!</p>
-            <button onClick={() => setShowCreateForm(true)} style={styles.createBtnLarge}>
-              <Plus size={18} /> Nueva meta
-            </button>
-          </div>
-        )}
-
-        {/* Goal cards */}
-        {goals.length > 0 && (
-          <div style={styles.goalGrid}>
-            {goals.map(goal => {
-              const saved = goal.cells.filter(c => c.checked).reduce((s, c) => s + c.value, 0);
-              const pct = Math.min((saved / goal.target) * 100, 100);
-              return (
-                <div
-                  key={goal.id}
-                  style={styles.goalCard}
-                  onClick={() => setActiveGoalId(goal.id)}
-                >
-                  <div style={styles.goalCardTop}>
-                    <span style={styles.goalCardName}>{goal.name}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); deleteGoal(goal.id); }}
-                      style={styles.goalCardDelete}
-                      title="Eliminar"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                  <div style={styles.goalCardProgressWrap}>
-                    <div style={{ ...styles.goalCardProgressBar, width: `${pct}%` }} />
-                  </div>
-                  <div style={styles.goalCardMeta}>
-                    <span style={styles.goalCardSaved}>{formatCOP(saved)}</span>
-                    <span style={styles.goalCardTarget}>/ {formatCOP(goal.target)}</span>
-                    <span style={styles.goalCardPct}>{pct.toFixed(0)}%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* FAB */}
-        {goals.length > 0 && !showCreateForm && (
-          <div style={styles.fabWrap}>
-            <button onClick={() => setShowCreateForm(true)} style={styles.fab}>
-              <Plus size={22} /> Nueva meta
-            </button>
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       <style>{cssBase}</style>
     </div>
@@ -406,6 +479,11 @@ const cssBase = `
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes slideUp   { from { transform: translateY(100%) } to { transform: translateY(0) } }
+  @keyframes slideDown { from { transform: translateY(0) } to { transform: translateY(100%) } }
+  @keyframes overlayIn  { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes overlayOut { from { opacity: 1 } to { opacity: 0 } }
+  body.sheet-open { overflow: hidden; touch-action: none; }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,107,157,0.35); border-radius: 2px; }
@@ -492,11 +570,9 @@ const styles = {
     fontFamily: "'Nunito', sans-serif",
     color: "var(--color-text)",
     position: "relative",
+    overflowX: "hidden",
   },
   themeToggle: {
-    position: "absolute",
-    top: 0,
-    right: 0,
     width: 48,
     height: 48,
     borderRadius: "50%",
@@ -510,16 +586,12 @@ const styles = {
     transition: "background 0.2s, border-color 0.2s",
   },
   container: {
-    position: "relative",
-    zIndex: 1,
     maxWidth: 960,
     margin: "0 auto",
-    padding: "24px 16px 80px",
+    padding: "calc(60px + env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 96px)",
   },
 
   // List view
-  listHeader: { textAlign: "center", marginBottom: 28, position: "relative" },
-  coin: { fontSize: 48, display: "block", marginBottom: 6 },
   title: {
     fontSize: "clamp(26px, 7vw, 52px)",
     fontWeight: 900,
@@ -599,13 +671,6 @@ const styles = {
   },
 
   // Create form
-  createFormCard: {
-    background: "var(--card-bg)",
-    border: "1px solid var(--card-border)",
-    borderRadius: 18,
-    padding: "20px 20px 16px",
-    marginBottom: 20,
-  },
   createFormTitle: {
     fontWeight: 800,
     fontSize: 16,
@@ -669,7 +734,13 @@ const styles = {
   },
 
   // FAB
-  fabWrap: { display: "flex", justifyContent: "center", marginTop: 8 },
+  fabWrap: {
+    position: "fixed",
+    bottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)",
+    left: 0, right: 0, zIndex: 50,
+    display: "flex", justifyContent: "center",
+    pointerEvents: "none",
+  },
   fab: {
     background: "rgba(255,107,157,0.22)",
     border: "1px solid rgba(255,107,157,0.55)",
@@ -681,16 +752,10 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
+    pointerEvents: "auto",
   },
 
   // Detail view
-  detailHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 22,
-    paddingTop: 4,
-  },
   backBtn: {
     background: "var(--card-bg)",
     border: "1px solid var(--card-border)",
@@ -700,10 +765,11 @@ const styles = {
     display: "flex",
     alignItems: "center",
     flexShrink: 0,
+    marginRight: 12,
   },
   detailTitleWrap: { flex: 1, minWidth: 0 },
   detailTitle: {
-    fontSize: "clamp(20px, 5vw, 32px)",
+    fontSize: "clamp(16px, 4vw, 24px)",
     fontWeight: 900,
     color: "var(--color-title)",
     lineHeight: 1.15,
@@ -711,7 +777,7 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  detailTarget: { fontSize: 14, color: "var(--color-goal)", fontWeight: 600 },
+  detailTarget: { fontSize: 13, color: "var(--color-goal)", fontWeight: 600 },
   deleteGoalBtn: {
     background: "rgba(244,67,54,0.1)",
     border: "1px solid rgba(244,67,54,0.3)",
